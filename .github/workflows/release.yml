@@ -18,12 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - platform: windows-latest
+            args: --target x86_64-pc-windows-msvc --bundles nsis
+            optional: false
           - platform: macos-14
             args: --target aarch64-apple-darwin
             optional: true
-          - platform: windows-latest
-            args: --bundles nsis
-            optional: false
     continue-on-error: ${{ matrix.optional }}
     runs-on: ${{ matrix.platform }}
 
@@ -52,11 +52,6 @@ jobs:
           node-version: 20
 
       - name: Install Rust stable
-        if: matrix.platform != 'macos-14'
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Rust stable (macOS ARM)
-        if: matrix.platform == 'macos-14'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Ensure NSIS is available (windows only)
