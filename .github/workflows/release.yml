@@ -4,6 +4,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (for example: v0.1.0)'
+        required: true
+        type: string
 
 jobs:
   release:
@@ -18,12 +23,27 @@ jobs:
           - platform: ubuntu-22.04
             args: ''
           - platform: windows-latest
-            args: ''
+            args: --bundles nsis
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref }}
+
+      - name: Resolve release tag
+        id: release_meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Using release tag: ${TAG}"
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -46,15 +66,36 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Ensure NSIS is available (windows only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $nsisPath = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          $hasNsisInPath = Get-Command makensis.exe -ErrorAction SilentlyContinue
+          if (-not $hasNsisInPath -and -not (Test-Path $nsisPath)) {
+            choco install nsis -y --no-progress
+          }
+
       - name: install frontend dependencies
         run: npm ci
+
+      - name: Validate tag matches app version
+        shell: bash
+        run: |
+          TAG="${{ steps.release_meta.outputs.release_tag }}"
+          APP_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).version")
+          EXPECTED_TAG="v${APP_VERSION}"
+          if [ "${TAG}" != "${EXPECTED_TAG}" ]; then
+            echo "::error::Release tag (${TAG}) must match src-tauri/tauri.conf.json version (${EXPECTED_TAG})."
+            exit 1
+          fi
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ steps.release_meta.outputs.release_tag }}
           releaseName: 'Time Marker v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true

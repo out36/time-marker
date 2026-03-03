@@ -4,11 +4,12 @@ use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeBlock {
     id: String,
-    startTime: String, // mapped to start_time
-    endTime: String,   // mapped to end_time
-    themeId: String,   // mapped to theme_id
+    start_time: String,
+    end_time: String,
+    theme_id: String,
     notes: String,
     date: String,
 }
@@ -91,9 +92,9 @@ fn save_time_block(app_handle: tauri::AppHandle, block: TimeBlock) -> Result<(),
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             block.id,
-            block.startTime,
-            block.endTime,
-            block.themeId,
+            block.start_time,
+            block.end_time,
+            block.theme_id,
             block.notes,
             block.date
         ],
@@ -115,9 +116,9 @@ fn get_time_blocks(app_handle: tauri::AppHandle, date: String) -> Result<Vec<Tim
     let block_iter = stmt.query_map(params![date], |row| {
         Ok(TimeBlock {
             id: row.get(0)?,
-            startTime: row.get(1)?,
-            endTime: row.get(2)?,
-            themeId: row.get(3)?,
+            start_time: row.get(1)?,
+            end_time: row.get(2)?,
+            theme_id: row.get(3)?,
             notes: row.get(4)?,
             date: row.get(5)?,
         })
